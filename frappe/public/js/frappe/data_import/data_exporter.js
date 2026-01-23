@@ -127,9 +127,10 @@ frappe.data_import.DataExporter = class DataExporter {
 			doctype: this.doctype,
 			file_type: values.file_type,
 			export_records: values.export_records,
-			export_fields: doctype_field_map,
-			export_filters: filters,
+			export_fields: JSON.stringify(doctype_field_map),
+			export_filters: JSON.stringify(filters),
 		});
+});
 	}
 
 	make_filter_area() {
