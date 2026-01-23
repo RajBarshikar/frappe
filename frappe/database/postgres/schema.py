@@ -191,6 +191,29 @@ class PostgresTable(DBTable):
 			else:
 				raise e
 
+	def drop_unique_constraints_on_deleted_fields(self):
+		if not self.current_columns:
+			return
+
+		deleted_columns = set(self.current_columns) - set(self.columns)
+		if not deleted_columns:
+			return
+
+		for col_name in deleted_columns:
+			# use triple-single-quotes to avoid conflicts with double quotes in SQL
+			constraint_name = frappe.db.sql(f'''
+				SELECT conname
+				FROM pg_constraint
+				JOIN pg_attribute ON pg_attribute.attnum = ANY(pg_constraint.conkey)
+				WHERE pg_constraint.conrelid = '"{self.table_name}"'::regclass
+				AND pg_attribute.attname = %s
+				AND pg_constraint.contype = 'u'
+			''', (col_name,))
+
+			if constraint_name:
+				c_name = constraint_name[0][0]
+				frappe.db.sql(f'ALTER TABLE "{self.table_name}" DROP CONSTRAINT "{c_name}"')
+
 	def alter_primary_key(self) -> str | None:
 		# If there are no values in table allow migrating to UUID from varchar
 		autoname = self.meta.autoname
