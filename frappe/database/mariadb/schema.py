@@ -70,6 +70,8 @@ class MariaDBTable(DBTable):
 		frappe.db.sql_ddl(query)
 
 	def alter(self):
+		self.drop_unique_constraints_on_deleted_fields()
+		
 		for col in self.columns.values():
 			col.build_for_alter_table(self.current_columns.get(col.fieldname.lower()))
 
@@ -144,6 +146,23 @@ class MariaDBTable(DBTable):
 				)
 
 			raise
+
+	def drop_unique_constraints_on_deleted_fields(self):
+		if not self.current_columns:
+			return
+
+		deleted_columns = set(self.current_columns) - set(self.columns)
+		if not deleted_columns:
+			return
+
+		existing_indexes = frappe.db.sql(f"SHOW INDEX FROM `{self.table_name}`", as_dict=True)
+		for index in existing_indexes:
+			if index.Key_name == "PRIMARY":
+				continue
+
+			if index.Non_unique == 0 and index.Column_name in deleted_columns:
+				frappe.db.commit()
+				frappe.db.sql(f"ALTER TABLE `{self.table_name}` DROP INDEX `{index.Key_name}`")
 
 	def alter_primary_key(self) -> str | None:
 		# If there are no values in table allow migrating to UUID from varchar
